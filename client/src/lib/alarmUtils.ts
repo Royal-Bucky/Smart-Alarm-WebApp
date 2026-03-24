@@ -1,5 +1,6 @@
-// Enhanced alarm utilities with robust scheduling and notification system
+// Enhanced alarm utilities with robust scheduling and notification system  
 import type { Alarm, InsertAlarm } from "@shared/schema";
+import { audioManager } from "./audioManager";
 
 // Browser notification manager
 export class NotificationManager {
@@ -112,13 +113,26 @@ export class AlarmScheduler {
   private triggerAlarm(alarm: Alarm): void {
     console.log(`🔔 Alarm triggered: ${alarm.title}`);
     
+    // Play sound if enabled
+    if (alarm.soundEnabled) {
+      audioManager.playAlarm();
+    }
+    
     // Show notification
     const notificationManager = NotificationManager.getInstance();
-    notificationManager.showNotification(alarm.title, {
+    const notification = notificationManager.showNotification(alarm.title, {
       body: alarm.description || `Time for: ${alarm.title}`,
       tag: `alarm-${alarm.id}`,
       data: { alarmId: alarm.id },
     });
+
+    // Handle notification clicks
+    if (notification) {
+      notification.onclick = () => {
+        audioManager.stopAlarm();
+        notification.close();
+      };
+    }
 
     // Call external trigger handler
     this.onAlarmTrigger?.(alarm);

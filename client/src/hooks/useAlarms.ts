@@ -1,7 +1,40 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+// Helper function to determine sound type based on alarm context
+function determineSoundType(alarm: Alarm): SoundType {
+  const title = alarm.title.toLowerCase();
+  const description = alarm.description?.toLowerCase() || '';
+  
+  // Check for urgent keywords
+  if (title.includes('urgent') || title.includes('important') || title.includes('critical')) {
+    return 'urgent';
+  }
+  
+  // Check for gentle/relaxing keywords
+  if (title.includes('gentle') || title.includes('wake up') || title.includes('meditation') || 
+      title.includes('relax') || title.includes('yoga')) {
+    return 'gentle';
+  }
+  
+  // Check for timer-related keywords
+  if (title.includes('timer') || title.includes('break') || title.includes('session') ||
+      description.includes('timer')) {
+    return 'timer';
+  }
+  
+  // Check for notification-style alarms
+  if (title.includes('reminder') || title.includes('notify') || title.includes('check')) {
+    return 'notification';
+  }
+  
+  // Default to standard alarm
+  return 'alarm';
+}
+
 import { useEffect, useRef, useCallback } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { AlarmScheduler, NotificationManager, createSnoozeAlarm, validateAlarmTime } from "@/lib/alarmUtils";
+import { audioManager, type SoundType } from "@/lib/audioManager";
 import type { Alarm, InsertAlarm } from "@shared/schema";
 
 // Custom hook for managing alarms with scheduling
@@ -14,10 +47,19 @@ export function useAlarms() {
   useEffect(() => {
     if (!schedulerRef.current) {
       schedulerRef.current = new AlarmScheduler((alarm) => {
-        // Handle alarm trigger
+        // Handle alarm trigger with enhanced audio
         console.log(`🔔 Alarm triggered: ${alarm.title}`);
-        // You can add custom logic here, like showing a modal
-        // or playing a sound through your audioManager
+        
+        // Determine sound type based on alarm context
+        const soundType = determineSoundType(alarm);
+        
+        // Play appropriate sound
+        if (alarm.soundEnabled) {
+          audioManager.playSound(soundType, { loop: true });
+        }
+        
+        // You can add custom modal/UI logic here
+        // For example, show an alarm modal that allows snooze/dismiss
       });
     }
 
@@ -191,12 +233,33 @@ export function useAlarms() {
     return triggerTime <= twentyFourHoursFromNow;
   });
 
+  // Dismiss alarm (stops sound and deactivates)
+  const dismissAlarm = useCallback(async (id: number) => {
+    // Stop any playing sound
+    audioManager.stopSound();
+    
+    // Deactivate the alarm
+    await updateAlarmMutation.mutateAsync({ id, isActive: false });
+  }, [updateAlarmMutation]);
+
+  // Test sound preview
+  const previewSound = useCallback((soundType: SoundType) => {
+    audioManager.previewSound(soundType);
+  }, []);
+
+  // Set global volume
+  const setVolume = useCallback((volume: number) => {
+    audioManager.setVolume(volume);
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (schedulerRef.current) {
         schedulerRef.current.clearAllAlarms();
       }
+      // Stop any playing sounds when component unmounts
+      audioManager.stopSound();
     };
   }, []);
 
@@ -219,10 +282,19 @@ export function useAlarms() {
     deleteAlarm: deleteAlarmMutation.mutateAsync,
     snoozeAlarm,
     toggleAlarm,
+    dismissAlarm,
     refetch,
+    
+    // Audio actions
+    previewSound,
+    setVolume,
+    stopCurrentSound: () => audioManager.stopSound(),
+    getCurrentSoundType: () => audioManager.getCurrentSoundType(),
+    getVolume: () => audioManager.getVolume(),
     
     // Utility functions
     requestNotificationPermission: () => notificationManagerRef.current?.requestPermission(),
+    requestAudioPermission: () => audioManager.requestAudioPermission(),
   };
 }
 
@@ -269,3 +341,4 @@ function calculateNextTriggerTime(alarm: Alarm): Date {
   
   return nextTrigger;
 }
+

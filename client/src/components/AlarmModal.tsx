@@ -89,7 +89,7 @@ export function AlarmModal() {
       audioManager.stopAlarm();
       
       // For non-repeating alarms, delete them after triggering
-      const alarm = alarms.find(a => a.id === triggeredAlarm.id);
+      const alarm = alarms.find((a: { id: number; }) => a.id === triggeredAlarm.id);
       if (alarm && alarm.repeatType === "none") {
         await deleteAlarm(triggeredAlarm.id);
       }
@@ -107,7 +107,7 @@ export function AlarmModal() {
       const snoozeTime = new Date();
       snoozeTime.setMinutes(snoozeTime.getMinutes() + 10);
       
-      const alarm = alarms.find(a => a.id === triggeredAlarm.id);
+      const alarm = alarms.find((a: { id: number; }) => a.id === triggeredAlarm.id);
       if (alarm) {
         // Update the alarm with the new snooze time
         await updateAlarm({
